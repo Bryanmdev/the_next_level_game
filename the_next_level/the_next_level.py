@@ -3,31 +3,24 @@ import pgzrun
 import random
 
 # Definição das constantes globais para a janela do jogo.
-# Manter estas configurações no topo facilita ajustes rápidos.
 WIDTH = 800
 HEIGHT = 600
 TITLE = "The Next Level"
 
-
 # === SESSÃO 2: CONFIGURAÇÃO DO MAPA E GERAÇÃO ===
-# Constantes relacionadas à geração procedural do mapa.
-# O tamanho do tile (TILE_SIZE) é a base para todos os cálculos de posicionamento.
 TILE_SIZE = 16
 MAP_WIDTH = WIDTH // TILE_SIZE
 MAP_HEIGHT = HEIGHT // TILE_SIZE
 MAX_LEVELS = 5
 
-
 # === SESSÃO 3: ESTADO DO JOGO E OBJETOS GLOBAIS ===
-# A variável 'game_state' implementa uma máquina de estados finitos para gerir o fluxo do jogo (menu, história, jogo, etc.).
 game_state = 'main_menu' 
 music_on = True
 current_level = 0
-player_lives = 3
-is_door_open = False # Flag booleana para controlar a condição de vitória do nível.
+player_lives = 5
+is_door_open = False
 
 # Listas que armazenarão os objetos ativos do jogo.
-# São inicializadas como globais para serem acessíveis por múltiplas funções.
 tiles = []
 wall_tiles = []
 player = None
@@ -44,24 +37,18 @@ exit_button = Actor("button_exit", (WIDTH / 2, 350))
 
 # Constantes de balanceamento da jogabilidade.
 ANIMATION_SPEED = 0.15
-ATTACK_COOLDOWN = 0.4 # Intervalo para prevenir o "spam" de ataques.
-
+ATTACK_COOLDOWN = 0.4
 
 # === SESSÃO 4: CLASSES DOS PERSONAGENS ===
 
 class Player:
-    """
-    Representa o herói controlado pelo utilizador.
-    Encapsula toda a lógica de movimento, animação, ataque e dano do jogador.
-    """
+    """Representa o herói controlado pelo utilizador."""
     def __init__(self, x, y):
         self.x, self.y = x, y
         self.speed = 2
-        self.state = 'idle' # O estado atual (idle, walk, attack) determina a animação e as ações permitidas.
-        self.direction = 'down' # A direção visual do sprite.
+        self.state = 'idle'
+        self.direction = 'down'
         
-        # Dicionários para gerir as sequências de animação.
-        # A separação por direção (direita/esquerda) permite o espelhamento dos sprites.
         self.animations = {
             'idle': ["player_idle_1", "player_idle_2"],
             'walk': ["player_walk_1", "player_walk_2"],
@@ -76,37 +63,44 @@ class Player:
         self.anim_timer = 0
         self.actor = Actor(self.animations['idle'][0], (self.x, self.y))
         
-        # Timers para controlar a invencibilidade e o cooldown do ataque.
         self.invincible_timer = 0
         self.attack_cooldown_timer = 0
         self.attack_anim_timer = 0
 
     def move(self, dx, dy):
-        """Processa o movimento e a colisão com as paredes (wall_tiles)."""
-        if self.state == 'attack': return
+        """Processa o movimento e a colisão com as paredes."""
+        if self.state == 'attack': 
+            return
 
-        # A lógica de direção foi desenhada para priorizar a orientação horizontal.
-        if dx > 0: self.direction = 'right'
-        elif dx < 0: self.direction = 'left'
-        elif dy < 0 and self.direction not in ['left', 'right']: self.direction = 'up'
-        elif dy > 0 and self.direction not in ['left', 'right']: self.direction = 'down'
+        if dx > 0: 
+            self.direction = 'right'
+        elif dx < 0: 
+            self.direction = 'left'
+        elif dy < 0 and self.direction not in ['left', 'right']: 
+            self.direction = 'up'
+        elif dy > 0 and self.direction not in ['left', 'right']: 
+            self.direction = 'down'
 
-        # A colisão é verificada separadamente para cada eixo (X e Y).
-        # Isto permite que o jogador deslize ao longo de uma parede em vez de parar completamente.
+        # Verificação de colisão no eixo X
         self.x += dx
         self.actor.x = self.x
         for wall in wall_tiles:
-            if self.actor.colliderect(wall): self.x -= dx; break
+            if self.actor.colliderect(wall): 
+                self.x -= dx
+                break
         
+        # Verificação de colisão no eixo Y
         self.y += dy
         self.actor.y = self.y
         for wall in wall_tiles:
-            if self.actor.colliderect(wall): self.y -= dy; break
+            if self.actor.colliderect(wall): 
+                self.y -= dy
+                break
         
         self.actor.pos = self.x, self.y
 
     def attack(self):
-        """Inicia a ação de ataque, criando uma hitbox e ativando o cooldown."""
+        """Inicia a ação de ataque."""
         global attack_hitbox
         if self.attack_cooldown_timer <= 0:
             self.state = 'attack'
@@ -115,26 +109,29 @@ class Player:
             self.attack_anim_timer = ANIMATION_SPEED * 2
             sounds.hit.play()
 
-            # A hitbox do ataque é um Rect temporário, posicionado à frente do jogador.
-            # As coordenadas são convertidas para int para garantir compatibilidade com o Pygame.
+            # Criar hitbox do ataque
             px, py = int(self.actor.centerx), int(self.actor.centery)
-            topleft_x, topleft_y = 0, 0
-            if self.direction == 'up': topleft_x, topleft_y = px - TILE_SIZE // 2, py - TILE_SIZE - TILE_SIZE // 2
-            elif self.direction == 'down': topleft_x, topleft_y = px - TILE_SIZE // 2, py + TILE_SIZE // 2
-            elif self.direction == 'left': topleft_x, topleft_y = px - TILE_SIZE - TILE_SIZE // 2, py - TILE_SIZE // 2
-            elif self.direction == 'right': topleft_x, topleft_y = px + TILE_SIZE // 2, py - TILE_SIZE // 2
+            if self.direction == 'up': 
+                topleft_x, topleft_y = px - TILE_SIZE // 2, py - TILE_SIZE - TILE_SIZE // 2
+            elif self.direction == 'down': 
+                topleft_x, topleft_y = px - TILE_SIZE // 2, py + TILE_SIZE // 2
+            elif self.direction == 'left': 
+                topleft_x, topleft_y = px - TILE_SIZE - TILE_SIZE // 2, py - TILE_SIZE // 2
+            elif self.direction == 'right': 
+                topleft_x, topleft_y = px + TILE_SIZE // 2, py - TILE_SIZE // 2
             
             attack_hitbox = Rect((topleft_x, topleft_y), (TILE_SIZE, TILE_SIZE))
 
     def take_damage(self, enemy):
-        """Processa a perda de vida e o efeito de recuo (knockback)."""
+        """Processa a perda de vida e o efeito de recuo."""
         global player_lives
-        if self.invincible_timer > 0: return
+        if self.invincible_timer > 0: 
+            return
 
         player_lives -= 1
-        self.invincible_timer = 1.0 # Concede 1 segundo de invencibilidade.
+        self.invincible_timer = 1.0
 
-        # O recuo é calculado normalizando o vetor entre o inimigo e o jogador.
+        # Calcular recuo
         dx, dy = self.x - enemy.x, self.y - enemy.y
         norm_sq = dx**2 + dy**2
         if norm_sq > 0:
@@ -143,15 +140,16 @@ class Player:
             self.move(knock_dx, knock_dy)
 
     def update(self, dt):
-        """A lógica principal do jogador, executada a cada frame."""
-        # A estrutura foi desenhada para dar prioridade ao estado de ataque,
-        # cancelando outras ações como o movimento.
-        if self.invincible_timer > 0: self.invincible_timer -= dt
-        if self.attack_cooldown_timer > 0: self.attack_cooldown_timer -= dt
+        """Lógica principal do jogador."""
+        if self.invincible_timer > 0: 
+            self.invincible_timer -= dt
+        if self.attack_cooldown_timer > 0: 
+            self.attack_cooldown_timer -= dt
         
         if self.state == 'attack':
             self.attack_anim_timer -= dt
-            if self.attack_anim_timer <= 0: self.state = 'idle'
+            if self.attack_anim_timer <= 0: 
+                self.state = 'idle'
             self.animate(dt)
             return
 
@@ -160,22 +158,28 @@ class Player:
             self.animate(dt)
             return
 
-        # Movimento agora utiliza as teclas WASD
+        # Movimento com WASD
         dx, dy = 0, 0
-        if keyboard.a: dx = -self.speed      # Esquerda
-        elif keyboard.d: dx = self.speed     # Direita
-        elif keyboard.w: dy = -self.speed    # Cima
-        elif keyboard.s: dy = self.speed     # Baixo
+        if keyboard.a: 
+            dx = -self.speed
+        elif keyboard.d: 
+            dx = self.speed
+        elif keyboard.w: 
+            dy = -self.speed
+        elif keyboard.s: 
+            dy = self.speed
 
         self.state = 'walk' if (dx != 0 or dy != 0) else 'idle'
-        if self.state == 'walk': self.move(dx, dy)
+        if self.state == 'walk': 
+            self.move(dx, dy)
             
         self.animate(dt)
 
     def animate(self, dt):
         """Gere a troca de frames das animações."""
         self.anim_timer += dt
-        if self.anim_timer < ANIMATION_SPEED: return
+        if self.anim_timer < ANIMATION_SPEED: 
+            return
         self.anim_timer = 0
         
         anim_dict = self.animations_left if self.direction == 'left' else self.animations
@@ -184,16 +188,13 @@ class Player:
         self.actor.image = current_sequence[self.current_frame]
 
     def draw(self):
-        """Desenha o jogador, aplicando o efeito de piscar se estiver invencível."""
+        """Desenha o jogador com efeito de piscar se invencível."""
         if self.invincible_timer > 0 and int(self.invincible_timer * 10) % 2 == 0:
             return
         self.actor.draw()
 
 class Enemy:
-    """
-    A classe base para todos os inimigos.
-    Contém a lógica comum de movimento, perseguição e animação.
-    """
+    """Classe base para todos os inimigos."""
     def __init__(self, x, y):
         self.x, self.y = x, y
         self.speed = 1
@@ -209,10 +210,10 @@ class Enemy:
         self.actor = Actor(self.animations['walk'][0], (self.x, self.y))
         
         self.patrol_timer = random.uniform(1, 3)
-        self.direction_vector = (0,0)
+        self.direction_vector = (0, 0)
 
     def take_damage(self, attacker):
-        """Reduz a vida do inimigo e aplica um recuo."""
+        """Reduz a vida do inimigo e aplica recuo."""
         self.health -= 1
         dx, dy = self.x - attacker.x, self.y - attacker.y
         norm_sq = dx**2 + dy**2
@@ -226,17 +227,20 @@ class Enemy:
         self.x += dx
         self.actor.x = self.x
         for wall in wall_tiles:
-            if self.actor.colliderect(wall): self.x -= dx; break
+            if self.actor.colliderect(wall): 
+                self.x -= dx
+                break
         
         self.y += dy
         self.actor.y = self.y
         for wall in wall_tiles:
-            if self.actor.colliderect(wall): self.y -= dy; break
+            if self.actor.colliderect(wall): 
+                self.y -= dy
+                break
         self.actor.pos = self.x, self.y
 
     def update(self, dt):
-        """Implementa a IA do inimigo (patrulha e perseguição)."""
-        # A distância é calculada ao quadrado para otimização (evita a raiz quadrada).
+        """Implementa a IA do inimigo."""
         dx_player, dy_player = self.x - player.actor.x, self.y - player.actor.y
         dist_sq_to_player = dx_player**2 + dy_player**2
 
@@ -246,25 +250,27 @@ class Enemy:
             self.patrol_timer -= dt
             if self.patrol_timer <= 0:
                 self.patrol_timer = random.uniform(2, 5)
-                self.direction_vector = random.choice([(0,1), (0,-1), (1,0), (-1,0)])
-        else: # Chasing
+                self.direction_vector = random.choice([(0, 1), (0, -1), (1, 0), (-1, 0)])
+        else:  # Chasing
             dx, dy = player.actor.x - self.x, player.actor.y - self.y
             norm_sq = dx**2 + dy**2
             if norm_sq > 0:
                 norm = norm_sq**0.5
                 self.direction_vector = (dx / norm, dy / norm)
             else:
-                self.direction_vector = (0,0)
+                self.direction_vector = (0, 0)
 
         dx, dy = self.direction_vector[0] * self.speed, self.direction_vector[1] * self.speed
-        if dx > 0: self.direction_str = 'right'
-        elif dx < 0: self.direction_str = 'left'
+        if dx > 0: 
+            self.direction_str = 'right'
+        elif dx < 0: 
+            self.direction_str = 'left'
 
         self.move(dx, dy)
         self.animate(dt)
 
     def animate(self, dt):
-        """Gere a troca de frames da animação, considerando a direção."""
+        """Gere a troca de frames da animação."""
         self.anim_timer += dt
         if self.anim_timer > ANIMATION_SPEED:
             self.anim_timer = 0
@@ -273,10 +279,9 @@ class Enemy:
             self.current_frame = (self.current_frame + 1) % len(anim_sequence)
             self.actor.image = anim_sequence[self.current_frame]
 
-    def draw(self): self.actor.draw()
+    def draw(self): 
+        self.actor.draw()
 
-# As classes Ghost e Cyclops herdam de Enemy, sobrepondo apenas os atributos
-# específicos para criar variações de inimigos com código reutilizado.
 class Ghost(Enemy):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -295,11 +300,10 @@ class Cyclops(Enemy):
         self.animations_left = {'walk': ["cyclops_walk_left_1", "cyclops_walk_left_2"]}
         self.actor.image = self.animations['walk'][0]
 
-
 # === SESSÃO 5: FUNÇÕES DE GERAÇÃO E CONFIGURAÇÃO DE NÍVEL ===
 
 def generate_random_map():
-    """Gera um mapa proceduralmente, criando salas e conectando-as com corredores."""
+    """Gera um mapa proceduralmente."""
     grid = [['#' for _ in range(MAP_WIDTH)] for _ in range(MAP_HEIGHT)]
     rooms = []
     
@@ -314,25 +318,31 @@ def generate_random_map():
                     grid[i][j] = '.'
             rooms.append(new_room)
 
+    # Conectar salas com corredores
     for i in range(len(rooms) - 1):
         cx1, cy1 = rooms[i].center
         cx2, cy2 = rooms[i+1].center
         
-        # Corredores mais largos (3 tiles)
         for x in range(min(cx1, cx2), max(cx1, cx2) + 1):
-            if cy1 - 1 >= 0: grid[cy1-1][x] = '.'
+            if cy1 - 1 >= 0: 
+                grid[cy1-1][x] = '.'
             grid[cy1][x] = '.'
-            if cy1 + 1 < MAP_HEIGHT: grid[cy1+1][x] = '.'
+            if cy1 + 1 < MAP_HEIGHT: 
+                grid[cy1+1][x] = '.'
         for y in range(min(cy1, cy2), max(cy1, cy2) + 1):
-            if cx2 - 1 >= 0: grid[y][cx2-1] = '.'
+            if cx2 - 1 >= 0: 
+                grid[y][cx2-1] = '.'
             grid[y][cx2] = '.'
-            if cx2 + 1 < MAP_WIDTH: grid[y][cx2+1] = '.'
+            if cx2 + 1 < MAP_WIDTH: 
+                grid[y][cx2+1] = '.'
             
+    # Adicionar paredes decorativas
     for r in range(MAP_HEIGHT):
         for c in range(MAP_WIDTH):
             if grid[r][c] == '#' and random.random() < 0.2:
                 grid[r][c] = 'X'
 
+    # Adicionar porta na última sala
     if rooms:
         last_room = rooms[-1]
         grid[last_room.centery][last_room.centerx] = 'D'
@@ -340,17 +350,21 @@ def generate_random_map():
     return ["".join(row) for row in grid]
 
 def setup_level(level_map):
-    """Constrói a geometria do nível, convertendo o mapa de texto em Atores."""
+    """Constrói a geometria do nível."""
     global tiles, wall_tiles, door
     tiles, wall_tiles, door = [], [], None
+    
     for row_index, row in enumerate(level_map):
         for col_index, char in enumerate(row):
             x, y = col_index * TILE_SIZE, row_index * TILE_SIZE
             tile_image, is_wall = None, False
             
-            if char == '.': tile_image = "floor"
-            elif char == '#': tile_image, is_wall = "wall", True
-            elif char == 'X': tile_image, is_wall = "wall_2", True
+            if char == '.': 
+                tile_image = "floor"
+            elif char == '#': 
+                tile_image, is_wall = "wall", True
+            elif char == 'X': 
+                tile_image, is_wall = "wall_2", True
             elif char == 'D':
                 tile_image = "closed_door"
                 door = Actor(tile_image, anchor=('left', 'top'), pos=(x, y))
@@ -358,11 +372,14 @@ def setup_level(level_map):
             if tile_image and char != 'D':
                 tile = Actor(tile_image, anchor=('left', 'top'), pos=(x, y))
                 tiles.append(tile)
-                if is_wall: wall_tiles.append(tile)
-    if door: tiles.append(door)
+                if is_wall: 
+                    wall_tiles.append(tile)
+    
+    if door: 
+        tiles.append(door)
 
 def find_valid_spawn_points(level_map):
-    """Cria uma lista de todas as coordenadas de chão válidas para evitar que entidades nasçam em paredes."""
+    """Encontra pontos válidos para spawn de entidades."""
     points = []
     for r, row in enumerate(level_map):
         for c, char in enumerate(row):
@@ -371,14 +388,14 @@ def find_valid_spawn_points(level_map):
     return points
 
 def open_the_door():
-    """Altera o estado e a imagem da porta quando todos os inimigos são derrotados."""
+    """Abre a porta quando todos os inimigos são derrotados."""
     global is_door_open
     if door:
         door.image = "door"
         is_door_open = True
 
 def next_level():
-    """Prepara todos os objetos para o próximo nível."""
+    """Prepara o próximo nível."""
     global current_level, game_state, player, enemies, potions, is_door_open
     
     current_level += 1
@@ -393,47 +410,51 @@ def next_level():
     
     spawn_points = find_valid_spawn_points(level_map)
     
+    # Spawn do jogador
     player_pos = random.choice(spawn_points)
     player = Player(player_pos[0], player_pos[1])
     spawn_points.remove(player_pos)
     
+    # Spawn dos inimigos
     enemies = []
     for _ in range(current_level + 2):
-        if not spawn_points: break
+        if not spawn_points: 
+            break
         enemy_pos = random.choice(spawn_points)
         spawn_points.remove(enemy_pos)
         enemy_type = random.choices([Enemy, Ghost, Cyclops], weights=[10, 5, 2 + current_level], k=1)[0]
         enemies.append(enemy_type(enemy_pos[0], enemy_pos[1]))
         
+    # Spawn da poção
     potions = []
     if spawn_points:
         potion_pos = random.choice(spawn_points)
         spawn_points.remove(potion_pos)
         potions.append(Actor("red_potion", pos=potion_pos))
 
-
-# === SESSÃO 6: FUNÇÕES PRINCIPAIS DO PYGAME ZERO (DRAW E UPDATE) ===
+# === SESSÃO 6: FUNÇÕES PRINCIPAIS DO PYGAME ZERO ===
 
 def draw():
-    """Função principal de desenho, chamada pelo Pygame Zero a cada frame."""
+    """Função principal de desenho."""
     screen.clear()
     
-    # O conteúdo desenhado depende do estado atual do jogo.
     if game_state == 'main_menu':
         menu_background.draw()
         screen.draw.text("The Next Level", center=(WIDTH / 2, 100), fontsize=60, color="orange", owidth=1.5, ocolor="black")
         start_button.draw()
         music_button.draw()
         exit_button.draw()
+        
     elif game_state == 'story_intro':
         menu_background.draw()
         
-        # Desenha as instruções de controlo no topo
+        # Instruções de controle
         controls_y = 50
         screen.draw.text("Controles:", center=(WIDTH / 2, controls_y), fontsize=25, color="yellow", owidth=1, ocolor="black")
         screen.draw.text("WASD - Mover", center=(WIDTH / 2, controls_y + 30), fontsize=20, color="white", owidth=1, ocolor="black")
         screen.draw.text("Espaço - Atacar", center=(WIDTH / 2, controls_y + 55), fontsize=20, color="white", owidth=1, ocolor="black")
         
+        # História
         story_text = [
             "A princesa do reino adoeceu gravemente.", "A única esperança é um antídoto raro,",
             "encontrado nas profundezas da Masmorra dos Campeões.", "",
@@ -450,25 +471,32 @@ def draw():
         screen.draw.text("Clique para continuar...", center=(WIDTH / 2, HEIGHT - 50), fontsize=25, color="yellow", owidth=1, ocolor="black")
 
     elif game_state == 'playing':
-        for tile in tiles: tile.draw()
-        for potion in potions: potion.draw()
+        for tile in tiles: 
+            tile.draw()
+        for potion in potions: 
+            potion.draw()
         player.draw()
-        for enemy in enemies: enemy.draw()
+        for enemy in enemies: 
+            enemy.draw()
         screen.draw.text(f"Vidas: {player_lives}", topleft=(10, 10), color="white", owidth=1, ocolor="black")
         screen.draw.text(f"Nível: {current_level}", topright=(WIDTH - 10, 10), color="white", owidth=1, ocolor="black")
+        
     elif game_state in ['game_over', 'victory']:
-        for tile in tiles: tile.draw()
+        for tile in tiles: 
+            tile.draw()
         msg, color = ("Game Over", "red") if game_state == 'game_over' else ("Você Venceu!", "green")
         screen.draw.text(msg, center=(WIDTH / 2, HEIGHT / 2), fontsize=80, color=color, owidth=1.5, ocolor="black")
         screen.draw.text("Pressione ESC para voltar ao menu", center=(WIDTH / 2, HEIGHT / 2 + 50), fontsize=30, owidth=1.5, ocolor="black")
 
 def update(dt):
-    """Função principal de lógica, chamada pelo Pygame Zero a cada frame."""
+    """Função principal de lógica."""
     global game_state, player_lives, attack_hitbox
-    if game_state != 'playing': return
+    if game_state != 'playing': 
+        return
 
     player.update(dt)
     
+    # Atualizar inimigos e verificar colisões
     for enemy in enemies[:]:
         enemy.update(dt)
         if player.actor.colliderect(enemy.actor):
@@ -478,30 +506,35 @@ def update(dt):
                 music.stop()
             break
 
+    # Processar ataques
     if attack_hitbox:
         for enemy in enemies[:]:
             if attack_hitbox.colliderect(enemy.actor._rect):
                 enemy.take_damage(player)
-                if enemy.health <= 0: enemies.remove(enemy)
+                if enemy.health <= 0: 
+                    enemies.remove(enemy)
         attack_hitbox = None
         
         if not enemies and not is_door_open:
             open_the_door()
     
+    # Coletar poções
     for potion in potions[:]:
         if player.actor.colliderect(potion):
-            if player_lives < 3: player_lives += 1
+            if player_lives < 5: 
+                player_lives += 1
             potions.remove(potion)
     
+    # Verificar se chegou à porta
     if is_door_open and door and player.actor.colliderect(door):
         next_level()
 
-
-# === SESSÃO 7: FUNÇÕES DE CONTROLE (MOUSE E TECLADO) ===
+# === SESSÃO 7: FUNÇÕES DE CONTROLE ===
 
 def on_mouse_down(pos):
-    """Lida com os eventos de clique do mouse."""
+    """Lida com eventos de clique do mouse."""
     global game_state, music_on, current_level, player_lives
+    
     if game_state == 'main_menu':
         if start_button.collidepoint(pos):
             game_state = 'story_intro'
@@ -510,21 +543,20 @@ def on_mouse_down(pos):
             music_button.image = "button_music_on" if music_on else "button_music_off"
         elif exit_button.collidepoint(pos):
             quit()
+            
     elif game_state == 'story_intro':
         game_state = 'playing'
         current_level = 0
-        player_lives = 3
+        player_lives = 5
         next_level()
-        if music_on: music.play("background_music")
+        if music_on: 
+            music.play("background_music")
 
 def on_key_down(key):
-    """Lida com os eventos de teclas pressionadas."""
+    """Lida com eventos de teclas."""
     global game_state
     if key == keys.ESCAPE and game_state in ['game_over', 'victory']:
         game_state = 'main_menu'
 
-
 # === SESSÃO 8: INICIALIZAÇÃO DO JOGO ===
-# O Pygame Zero executa automaticamente o código principal do módulo.
-# A chamada a pgzrun.go() inicia o loop principal do jogo.
 pgzrun.go()
